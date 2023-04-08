@@ -1,10 +1,101 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>SheDme</title>
-    </head>
-    <body>
-        <p>Hello Worlds.</p>
-    </body>
-    <script src="server.js"></script>
+  <head>
+    <meta charset="UTF-8">
+    <title>PeerJS Chat</title>
+  </head>
+  <body>
+    <div id="localVideo"></div>
+    <div id="remoteVideo"></div>
+    <input type="text" id="messageInput">
+    <button onclick="sendMessage()">Send</button>
+    <div id="messages"></div>
+    <script src="https://cdn.peerjs.com/0.6.1/peer.min.js"></script>
+    <script>
+      const peer = new Peer();
+
+      peer.on('open', function(id) {
+        console.log(`My peer ID is: ${id}`);
+      });
+
+      peer.on('call', function(call) {
+        console.log('Incoming call');
+
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          .then(function(stream) {
+            call.answer(stream);
+
+            const localVideo = document.getElementById('localVideo');
+            localVideo.srcObject = stream;
+            localVideo.play();
+          })
+          .catch(function(error) {
+            console.error(`Error getting media devices: ${error}`);
+          });
+
+        call.on('stream', function(remoteStream) {
+          console.log('Received remote stream');
+
+          const remoteVideo = document.getElementById('remoteVideo');
+          remoteVideo.srcObject = remoteStream;
+          remoteVideo.play();
+        });
+      });
+
+      function callPeer(remotePeerId) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          .then(function(stream) {
+            const call = peer.call(remotePeerId, stream);
+
+            const localVideo = document.getElementById('localVideo');
+            localVideo.srcObject = stream;
+            localVideo.play();
+
+            call.on('stream', function(remoteStream) {
+              console.log('Received remote stream');
+
+              const remoteVideo = document.getElementById('remoteVideo');
+              remoteVideo.srcObject = remoteStream;
+              remoteVideo.play();
+            });
+          })
+          .catch(function(error) {
+            console.error(`Error getting media devices: ${error}`);
+          });
+      }
+
+      const connections = {};
+
+      peer.on('connection', function(conn) {
+        console.log(`Connected to remote peer: ${conn.peer}`);
+
+        connections[conn.peer] = conn;
+
+        conn.on('data', function(data) {
+          console.log(`Received data: ${data}`);
+          const messages = document.getElementById('messages');
+          messages.innerHTML += `<p>${data}</p>`;
+        });
+
+        conn.on('close', function() {
+          console.log(`Disconnected from remote peer: ${conn.peer}`);
+          delete connections[conn.peer];
+        });
+      });
+
+      function sendMessage() {
+        const messageInput = document.getElementById('messageInput');
+        const message = messageInput.value;
+        messageInput.value = '';
+
+        for (const peerId in connections) {
+          const conn = connections[peerId];
+          conn.send(message);
+        }
+
+        const messages = document.getElementById('messages');
+        messages.innerHTML += `<p>You: ${message}</p>`;
+      }
+    </script>
+  </body>
 </html>
